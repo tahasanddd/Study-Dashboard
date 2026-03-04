@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Study Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-sub: #444;
+            --success: #22c55e;
+            --border: #e2e8f0;
+            --primary: #2c3e50;
+            --chart-empty: #f1f5f9;
+        }
+
+        /* Dark Mode variables */
+        [data-theme="dark"] {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-sub: #cbd5e1;
+            --border: #334155;
+            --primary: #94a3b8;
+            --chart-empty: #334155;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0; padding: 20px; color: var(--text-main);
+            transition: background 0.3s, color 0.3s;
+        }
+
+        .container { max-width: 1000px; margin: 0 auto; position: relative; }
+        .hidden { display: none !important; }
+
+        /* Dark Mode Toggle Button */
+        .theme-toggle {
+            position: absolute; top: 0; right: 0;
+            background: var(--card-bg); border: 1px solid var(--border);
+            padding: 8px 12px; border-radius: 20px; cursor: pointer;
+            color: var(--text-main); font-size: 14px; font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* --- Home Page Styles --- */
+        .header-box {
+            background: var(--card-bg); border: 1px solid var(--border);
+            padding: 15px 40px; border-radius: 12px; width: fit-content;
+            margin: 0 auto 40px auto; box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .subject-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;
+        }
+        .subject-card {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: 16px; padding: 20px; display: flex;
+            align-items: center; cursor: pointer; transition: all 0.2s ease;
+        }
+        .subject-card:hover {
+            border-color: var(--success); transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .chart-mini { width: 70px; height: 70px; margin-right: 20px; flex-shrink: 0; }
+
+        /* --- Details Page Styles --- */
+        .back-btn {
+            background: var(--success); color: white; border: none;
+            padding: 12px 24px; border-radius: 8px; cursor: pointer; 
+            font-weight: 600; transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+            position: sticky; top: 10px; z-index: 1000; margin-bottom: 20px;
+        }
+        .back-btn:hover { opacity: 0.9; transform: scale(1.02); }
+
+        .header-section-details {
+            background: var(--card-bg); border: 1px solid var(--border);
+            padding: 20px; border-radius: 20px; text-align: center;
+            margin-bottom: 25px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+        }
+        .chart-wrapper-large { width: 140px; height: 140px; margin: 0 auto; }
+        .grid-container-details {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;
+        }
+
+        .unit-card, .standard-unit-card, .chapter-card, .ict-card {
+            background: var(--card-bg); padding: 18px; border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-left: 5px solid var(--success);
+            transition: transform 0.2s; border-top: 1px solid var(--border);
+            border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+        }
+        .unit-title { font-weight: bold; font-size: 17px; border-bottom: 1px solid var(--border); margin-bottom: 12px; padding-bottom: 5px; color: var(--success); }
+        
+        .lesson-item, .main-row, .sub-task-row { display: flex; align-items: flex-start; margin: 10px 0; cursor: pointer; font-size: 14.5px; color: var(--text-sub); }
+        .sub-task-row { margin-left: 25px; border-left: 2px solid var(--border); padding-left: 10px; }
+        
+        input[type="checkbox"] { margin-right: 12px; accent-color: var(--success); width: 18px; height: 18px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙 Dark Mode</button>
+
+    <div id="home-page">
+        <div class="header-box">
+            <h1>Study Dashboard</h1>
+        </div>
+        <div class="subject-grid" id="home-grid"></div>
+    </div>
+
+    <div id="details-page" class="hidden">
+        <button class="back-btn" onclick="showHome()">&#11164; Back to Dashboard</button>
+        <div id="details-content"></div>
+    </div>
+</div>
+
+<script>
+    // Theme Logic
+    function toggleTheme() {
+        const body = document.documentElement;
+        const currentTheme = body.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        body.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        updateThemeUI(newTheme);
+        
+        // Re-render charts to update colors
+        if (document.getElementById('home-page').classList.contains('hidden')) {
+            const activeSub = subjects.find(s => document.querySelector('.header-section-details h3').innerText === s.name);
+            updateChart(activeSub.color);
+        } else {
+            renderHome();
+        }
+    }
+
+    function updateThemeUI(theme) {
+        const btn = document.getElementById('themeBtn');
+        btn.innerText = theme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
+    }
+
+    // Initial Theme Load
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeUI(savedTheme);
+
+    const subjects = [
+        { name: "Physics 1st Paper", type: 'chapter', chapters: ["অধ্যায় ১: ভৌতজগত ও পরিমাপ", "অধ্যায় ২: ভেক্টর", "অধ্যায় ৩: গতিবিদ্যা", "অধ্যায় ৪: নিউটনীয় বলবিদ্যা", "অধ্যায় ৫: কাজ, শক্তি ও ক্ষমতা", "অধ্যায় ৬: মহাকর্ষ ও অভিকর্ষ", "অধ্যায় ৭: পদার্থের গাঠনিক ধর্ম", "অধ্যায় ৮: পর্যাবৃত্তিক গতি", "অধ্যায় ৯: তরঙ্গ", "অধ্যায় ১০: আদর্শ গ্যাস ও গ্যাসের গতিতত্ত্ব"], storageKey: 'physics1_v1', color: '#22c55e' },
+        { name: "Physics 2nd Paper", type: 'chapter', chapters: ["অধ্যায় ১: তাপগতিবিদ্যা", "অধ্যায় ২: স্থির তড়িৎ", "অধ্যায় ৩: চল তড়িৎ", "অধ্যায় ৪: তড়িৎ প্রবাহের চৌম্বক ক্রিয়া ও চুম্বকত্ব", "অধ্যায় ৫: তাড়িতচৌম্বকীয় আবেশ ও পরিবর্তী প্রবাহ", "অধ্যায় ৬: জ্যামিতিক আলোকবিজ্ঞান", "অধ্যায় ৭: ভৌত আলোকবিজ্ঞান", "অধ্যায় ৮: আধুনিক পদার্থবিজ্ঞানের সূচনা", "অধ্যায় ৯: পরমাণুর মডেল ও নিউক্লিয়ার পদার্থবিজ্ঞান", "অধ্যায় ১০: সেমিকন্ডাক্টর ও ইলেকট্রনিক্স", "অধ্যায় ১১: জ্যোতির্বিজ্ঞান"], storageKey: 'physics2_v1', color: '#22c55e' },
+        { 
+            name: "Chemistry 1st paper", 
+            type: 'ict', 
+            chapters: [
+                { title: "অধ্যায় ১: ল্যাবরেটরির নিরাপদ ব্যবহার", subTasks: ["ব্যক্তিগত নিরাপত্তা ও সচেতনতা,গ্লাসসামগ্রী ও যন্ত্রপাতি পরিচালনা,রাসায়নিক নিক্তি ও পরিমাপ","রাসায়নিক দ্রব্যের ঝুঁকি ও পরিবেশগত প্রভাব","সেমিমাইক্রো ও মাইক্রো বিশ্লেষণ পদ্ধতি"] },
+                { title: "অধ্যায় ২: গুণগত রসায়ন", subTasks: ["পরমাণু মডেল ও গঠন","কোয়ান্টাম বলবিদ্যা ও ইলেকট্রন বিন্যাস","পরমাণুর মৌলিক কণিকা ও ভর","বর্ণালি ও আলোক রসায়ন" ,"দ্রাব্যতা ও দ্রাব্যতা গুণফল","আয়ন শনাক্তকরণ","পৃথকীকরণ পদ্ধতি"] },
+                { title: "অধ্যায় ৩: মৌলের পর্যায়বৃত্ত ধর্ম ও রাসায়নিক বন্ধন", subTasks: ["মৌলের শ্রেণিবিভাগ ও ব্লক", "মৌলের পর্যায়বৃত্ত ধর্ম ও এর নিয়ামক"," সংকরণ","পোলারিটি ও পোলারায়ন","সমযোজী বন্ধন","আন্তঃআণবিক বল","সন্নিবেশ বন্ধন","নামকরণ ও ব্যবহারিক"] },
+                { title: "অধ্যায় ৪: রাসায়নিক পরিবর্তন", subTasks: ["রাসায়নিক সাম্যাবস্থা ও লা-শাতেলিয়ার নীতি ", " সাম্যধ্রুবক ও ভরক্রিয়া সূত্র (Kp,Kc) "," অম্ল-ক্ষারক সাম্যাবস্থা(pH,pOH)","রাসায়নিক বিক্রিয়া ও তাপগতিবিদ্যা","বিক্রিয়ার হার ও প্রভাবক,গ্রিন কেমিস্ট্রি ও পরিবেশগত গুরুত্ব"] },
+                { title: "অধ্যায় ৫: কর্মমুখী রসায়ন", subTasks: ["খাদ্য নিরাপত্তা ও সংরক্ষণ", "পরিষ্কারক সামগ্রীর রসায়ন","দুধ ও দুগ্ধজাত পণ্য, টয়লেট্রিজ ও কসমেটিকস প্রস্তুতি"] }
+            ], 
+            storageKey: 'chem1_v1', 
+            color: '#22c55e' 
+        },
+        { 
+            name: "Chemistry 2nd Paper", 
+            type: 'ict', 
+            chapters: [
+                { title: "অধ্যায় ১: পরিবেশ রসায়ন", subTasks: ["বায়ুমণ্ডল ও প্রাকৃতিক ঘটনা","গ্যাস ও আণবিক তত্ত্ব" ,"আদর্শ vs বাস্তব গ্যাস ও পরিবেশ দূষণ ","পানি দূষণ, এসিড-ক্ষারক ও দূষক পদার্থ"] },
+                { title: "অধ্যায় ২: জৈব রসায়ন", subTasks: ["জৈব রসায়নের মৌলিক ধারণা","বন্ধন তত্ত্ব ও অরবিটাল ধারণা","সমগোত্রীয় শ্রেণি ও কার্যকরী মূলক","জৈব যৌগের নামকরণ (IUPAC)" ,"সমাণুতা","অ্যারোমেটিক ও অ্যালিফেটিক যৌগ","জৈব বিক্রিয়া","অ্যালকেন, অ্যালকিন, অ্যালকাইন (প্রস্তুতি ও শনাক্তকরণ)","অ্যালকাইল ও অ্যারাইল হ্যালাইড (প্রস্তুতি ও শনাক্তকরণ)","অ্যালকোহল, ইথার, অ্যামিন(প্রস্তুতি ও শনাক্তকরণ)","অ্যালডিহাইড ও কিটোন (প্রস্তুতি ও শনাক্তকরণ)","কার্বক্সিলিক এসিড, এস্টার, অ্যামাইড (প্রস্তুতি ও শনাক্তকরণ)","কার্যকরী মূলক শনাক্তকরণ","IR Spectroscopy দিয়ে -OH ও >C=O শনাক্তকরণ","গুরুত্বপূর্ণ জৈব যৌগ (দৈনন্দিন প্রয়োগ)","ভৌত ধর্ম ও বিশুদ্ধতা নির্ণয়","পলিমার ও জীবরসায়ন অংশ","পরিবেশ ও সামাজিক গুরুত্ব"] },
+                { title: "অধ্যায় ৩: পরিমাণগত রসায়ন", subTasks: ["গ্যাস ও রাসায়নিক সমীকরণ ভিত্তিক গণনা", "দ্রবণের ঘনমাত্রা ও মোলারিটি","এসিড–ক্ষার প্রশমন","জারণ–বিজারণ (Redox) বিক্রিয়া"," স্পেকট্রোস্কোপি ও ক্রোমাটোগ্রাফি"] },
+                { title: "অধ্যায় ৪: তড়িৎ রসায়ন", subTasks: ["তড়িৎ পরিবাহী ও পরিবাহিতা ", " ফ্যারাডের তড়িৎ বিশ্লেষণ "," ধাতুর সক্রিয়তা","তড়িৎদ্বার ও জারণ/বিজারণ অর্ধ-বিক্রিয়া","Red-Ox এবং নার্নস্ট","রাসায়নিক কোষ ও তড়িৎ শক্তি","ব্যাটারি ও ফুয়েল সেল","pH মাপ"] },
+                { title: "অধ্যায় ৫: অর্থনৈতিক রসায়ন", subTasks: ["বাংলাদেশের প্রাকৃতিক জ্বালানি ও শিল্পায়ন সম্ভাবনা", "বাংলাদেশের রসায়ন শিল্প ও উৎপাদন","শিল্প দূষণ, পুনর্ব্যবহার ও নতুন প্রযুক্তি"] }
+            ], 
+            storageKey: 'chem2_v1', 
+            color: '#22c55e' 
+        },
+        { name: "Biology 1st Paper", type: 'chapter', chapters: ["১ম অধ্যায়: কোষ ও এর গঠন", "২য় অধ্যায়: কোষ বিভাজন", "৩য় অধ্যায়: কোষ রসায়ন", "৪র্থ অধ্যায়: অনুজীব", "৫ম অধ্যায়: শৈবাল ও ছত্রাক", "৬ষ্ঠ অধ্যায়: ব্রায়োফাইটা ও টেরিডোফাইটা", "৭ম অধ্যায়: নগ্নবীজী ও আবৃতবীজী উদ্ভিদ", "৮ম অধ্যায়: টিস্যু ও টিস্যুতন্ত্র", "৯ম অধ্যায়: উদ্ভিদ শারীরতত্ত্ব", "১০ম অধ্যায়: উদ্ভিদ প্রজনন", "১১তম অধ্যায়: জৈব প্রযুক্তি", "১২শ অধ্যায়: জীবের পরিবেশ, বিস্তার ও সংরক্ষণ"], storageKey: 'bio1Chapters_v1', color: '#22c55e' },
+        { name: "Biology 2nd Paper", type: 'chapter', chapters: ["১ম অধ্যায়: প্রাণীর বিভিন্নতা ও শ্রেণিবিন্যাস", "২য় অধ্যায়: প্রাণীর পরিচিতি; হাইড্রা, ঘাসফড়িং, রুই মাছ", "৩য় অধ্যায়: মানব শারীরতত্ত্ব; পরিপাক ও শোষণ", "৪র্থ অধ্যায়: মানব শারীরতত্ত্ব; রক্ত ও সংবহন", "৫ম অধ্যায়: মানব শারীরতত্ত্ব; শ্বসন ও নিষ্কাশন", "৬ষ্ঠ অধ্যায়: মানব শারীরতত্ত্ব; বর্জ্য ও নিষ্কাশন", "৭ম অধ্যায়: মানব শারীরতত্ত্ব; চলন ও অঙ্গচালনা", "৮ম অধ্যায়: মানব শারীরতত্ত্ব; সমন্বয় ও নিয়ন্ত্রণর", "৯ম অধ্যায়: মানব জীবনের ধারাবাহিকতাব", "১০ম অধ্যায়: মানবদেহের প্রতিরক্ষা", "১১তম অধ্যায়: জীনতত্ত্ব ও বিবর্তন", "১২শ অধ্যায়: প্রাণীর আচরণ"], storageKey: 'bio2Chapters_v1', color: '#22c55e' },
+        { name: "Higher Math 1st Paper", type: 'chapter', chapters: ["অধ্যায়-১: ম্যাট্রিক্স ও নির্ণায়ক", "অধ্যায়-২: ভেক্টর", "অধ্যায়-৩: সরলরেখা", "অধ্যায়-৪: বৃত্ত", "অধ্যায়-৫: বিন্যাস ও সমাবেশ", "অধ্যায়-৬: ত্রিকোণমিতিক অনুপাত", "অধ্যায়-৭: সংযুক্ত কোণের ত্রিকোণমিতিক অনুপাত", "অধ্যায়-৮: ফাংশন ও ফাংশনের লেখচিত্র", "অধ্যায়-৯: অন্তরীকরণ", "অধ্যায়-১০: যোগজীকরণ"], storageKey: 'math1_v1', color: '#22c55e' },
+        { name: "Higher Math 2nd Paper", type: 'chapter', chapters: ["অধ্যায়-১: বাস্তব সংখ্যা", "অধ্যায়-২: যোগাশ্রয়ী প্রোগ্রাম", "অধ্যায়-৩: জটিল সংখ্যা", "অধ্যায়-৪: বহুপদী ও বহুপদী সমীকরণ", "অধ্যায়-৫: দ্বিপদী বিস্তৃতি", "অধ্যায়-৬: কণিক", "অধ্যায়-৭: বিপরীত ত্রিকোণমিতিক ফাংশন ও ত্রিকোণমিতিক সমীকরণ", "অধ্যায়-৮: স্থিতিবিদ্যা", "অধ্যায়-৯: সমতলে বস্তুকণার গতি", "অধ্যায়-১০: বিস্তার পরিমাপ ও সম্ভাবনা"], storageKey: 'math2_v1', color: '#22c55e' },
+        { 
+            name: "ICT", 
+            type: 'ict', 
+            chapters: [
+                { title: "অধ্যায় ১: তথ্য ও যোগাযোগ প্রযুক্তি : বিশ্ব ও বাংলাদেশ প্রেক্ষিত" },
+                { title: "অধ্যায় ২: কমিউনিকেশন সিস্টেম ও নেটওয়ার্কিং", subTasks: ["কমিউনিকেশন সিস্টেম", "কম্পিউটার নেটওয়ার্কিং"] },
+                { title: "অধ্যায় ৩: সংখ্যা পদ্ধতি ও ডিজিটাল ডিভাইস", subTasks: ["সংখ্যা পদ্ধতি", "ডি্যাল ডিভাইস"] },
+                { title: "অধ্যায় ৪: ওয়েব ডিজাইন পরিচিতি ও HTML" },
+                { title: "অধ্যায় ৫: প্রোগ্রামিং ভাষা" },
+                { title: "অধ্যায় ৬: ডেটাবেজ ম্যানেজমেন্ট সিস্টেমস" }
+            ], 
+            storageKey: 'ict_progress_v2', 
+            color: '#22c55e' 
+        },
+        { name: "Bangla", type: 'syllabus', syllabus: [ { unit: "কবিতা", lessons: ["সোনার তরী", "বিদ্রোহী", "আঠারো বছর বয়স", "ফেব্রুয়ারি ১৯৬৯", "আমি কিংবদন্তির কথা বলছি", "তাহারেই পড়ে মনে", "প্রতিদান", "বিভীষণের প্রতি মেঘনাদ", "সুচেতনা", "ঋতু বর্ণন", "প্রত্যাবর্তনের লজ্জা", "পদ্মা"] }, { unit: "গদ্য", lessons: ["বাঙালি নব্যলেখক দিগের প্রতি নিবেদন", "অপরিচিতা", "বিলাসী", "নেকলেস", "সাহিত্য খেলা", "অর্ধাঙ্গী", "মাসি-পিসি", "জীবন ও বৃক্ষ", "গন্তব্য Kabul", "যৌবনের গান", "রেইনকোট", "কপিলদাস মুর্মুর শেষ কাজ"] }, { unit: "সহপাঠ", lessons: ["লালসালু (সম্পূর্ণ)", "সিরাজউদ্দৌলা (সম্পূর্ণ)"] } ], storageKey: 'banglaProgress_v1', color: '#22c55e' },
+        { name: "English", type: 'syllabus', syllabus: [ { unit: "Unit 1: Education and Life", lessons: ["The Parrot's Tale", "Education and Technology", "Children in School", "Civic Engagement"] }, { unit: "Unit 2: Art and Craft", lessons: ["What is Beauty?", "Folk Music", "Art", "Craft"] }, { unit: "Unit 3: Myths and Literature", lessons: ["Myths of Bengal", "Icarus", "The Legend of Gazi", "Khona"] }, { unit: "Unit 4: History", lessons: ["July Uprising", "Transformative Speeches", "Great Women"] }, { unit: "Unit 5: Human Rights", lessons: ["Awareness I", "Awareness II", "Health and Education", "Coal Miners", "Frederick Douglass"] }, { unit: "Unit 6: Dreams", lessons: ["What is a Dream?", "Dreams in Literature"] }, { unit: "Unit 7: Youthful Achievers", lessons: ["Brojen Das", "Scaling a Mountain Peak", "The Unbeaten Girls"] }, { unit: "Unit 8: Relationships", lessons: ["Family Relationship", "Warmth", "A Mother in Mannville", "Love"] }, { unit: "Unit 9: Adolescence", lessons: ["Storm and Stresses", "Problems in BD", "Story of Shilpi", "No to Bullying"] }, { unit: "Unit 10: Lifestyle", lessons: ["Manners", "Etiquette", "Food and Culture", "Fitness", "Consumerism"] }, { unit: "Unit 11: Peace and Conflict", lessons: ["Conflict", "Old Man at Bridge", "Gaza Stories", "Peace in Lit", "Opinions"] }, { unit: "Unit 12: Environment", lessons: ["Water Everywhere", "Greta Effect", "Endangered Species", "Justice", "Scientific Method"] } ], storageKey: 'englishProgress_v2', color: '#22c55e' }
+    ];
+
+    let currentChart;
+
+    function showHome() {
+        document.getElementById('details-page').classList.add('hidden');
+        document.getElementById('home-page').classList.remove('hidden');
+        window.scrollTo(0, 0);
+        renderHome();
+    }
+
+    function openSubject(sub) {
+        document.getElementById('home-page').classList.add('hidden');
+        document.getElementById('details-page').classList.remove('hidden');
+        window.scrollTo(0, 0);
+        
+        if (sub.type === 'chapter') renderChapterPage(sub);
+        else if (sub.type === 'ict') renderICTPage(sub);
+        else renderSyllabusPage(sub);
+    }
+
+    function renderHome() {
+        const grid = document.getElementById('home-grid');
+        grid.innerHTML = '';
+        const emptyColor = getComputedStyle(document.documentElement).getPropertyValue('--chart-empty').trim();
+        
+        subjects.forEach(sub => {
+            const saved = JSON.parse(localStorage.getItem(sub.storageKey)) || [];
+            let total = 0;
+            if (sub.type === 'chapter') total = sub.chapters.length;
+            else if (sub.type === 'ict') {
+                sub.chapters.forEach(c => total += (c.subTasks ? c.subTasks.length : 1));
+            } else {
+                total = sub.syllabus.reduce((acc, curr) => acc + curr.lessons.length, 0);
+            }
+            
+            let done = saved.filter(x => x === true).length;
+            const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+
+            const card = document.createElement('div');
+            card.className = 'subject-card';
+            card.onclick = () => openSubject(sub);
+            card.innerHTML = `
+                <div class="chart-mini"><canvas id="mini-${sub.storageKey}"></canvas></div>
+                <div class="subject-info">
+                    <h3 style="font-size: 15px; margin: 0;">${sub.name}</h3>
+                    <span class="percentage" style="color: ${sub.color}; font-size: 13px;">${percent}% Completed</span>
+                </div>
+            `;
+            grid.appendChild(card);
+            
+            new Chart(document.getElementById(`mini-${sub.storageKey}`).getContext('2d'), {
+                type: 'doughnut',
+                data: { datasets: [{ data: [done, (total - done) || 1], backgroundColor: [sub.color, emptyColor], borderWidth: 0 }] },
+                options: { cutout: '75%', plugins: { tooltip: { enabled: false }, legend: { display: false } } }
+            });
+        });
+    }
+
+    function renderChapterPage(sub) {
+        const content = document.getElementById('details-content');
+        content.innerHTML = `<div class="header-section-details"><h3>${sub.name}</h3><div class="chart-wrapper-large"><canvas id="mainChart"></canvas></div><div id="percentage" style="font-size: 28px; font-weight: bold; color: ${sub.color}; margin-top:10px;">0%</div><p>Chapters Completed</p></div><div class="grid-container-details" id="chapter-grid"></div>`;
+        const container = document.getElementById('chapter-grid');
+        const saved = JSON.parse(localStorage.getItem(sub.storageKey)) || [];
+        sub.chapters.forEach((chapter, index) => {
+            const card = document.createElement('label');
+            card.className = 'chapter-card';
+            card.innerHTML = `<input type="checkbox" class="task" ${saved[index] ? 'checked' : ''} onchange="saveData('${sub.storageKey}', '${sub.color}')"><span>${chapter}</span>`;
+            container.appendChild(card);
+        });
+        updateChart(sub.color);
+    }
+
+    function renderICTPage(sub) {
+        const content = document.getElementById('details-content');
+        content.innerHTML = `<div class="header-section-details"><h3>${sub.name}</h3><div class="chart-wrapper-large"><canvas id="mainChart"></canvas></div><div id="percentage" style="font-size: 28px; font-weight: bold; color: ${sub.color}; margin-top:10px;">0%</div><p>Chapters Completed</p></div><div class="grid-container-details" id="ict-grid"></div>`;
+        const container = document.getElementById('ict-grid');
+        const saved = JSON.parse(localStorage.getItem(sub.storageKey)) || [];
+        let globalIdx = 0;
+        sub.chapters.forEach(chapter => {
+            const card = document.createElement('div');
+            card.className = 'ict-card';
+            if (!chapter.subTasks) {
+                card.innerHTML = `<label class="main-row"><input type="checkbox" class="task" ${saved[globalIdx] ? 'checked' : ''} onchange="saveData('${sub.storageKey}', '${sub.color}')"><span class="unit-text">${chapter.title}</span></label>`;
+                globalIdx++;
+            } else {
+                let html = `<span class="unit-title" style="display:block; border:none;">${chapter.title}</span>`;
+                chapter.subTasks.forEach(subT => {
+                    html += `<label class="sub-task-row"><input type="checkbox" class="task" ${saved[globalIdx] ? 'checked' : ''} onchange="saveData('${sub.storageKey}', '${sub.color}')"><span class="sub-text">${subT}</span></label>`;
+                    globalIdx++;
+                });
+                card.innerHTML = html;
+            }
+            container.appendChild(card);
+        });
+        updateChart(sub.color);
+    }
+
+    function renderSyllabusPage(sub) {
+        const content = document.getElementById('details-content');
+        content.innerHTML = `<div class="header-section-details"><h3>${sub.name}</h3><div class="chart-wrapper-large"><canvas id="mainChart"></canvas></div><div id="percentage" style="font-size: 28px; font-weight: bold; color: ${sub.color}; margin-top: 10px;">0%</div><p>Chapters Completed</p></div><div class="grid-container-details" id="syllabus-grid"></div>`;
+        const container = document.getElementById('syllabus-grid');
+        const saved = JSON.parse(localStorage.getItem(sub.storageKey)) || [];
+        let globalIdx = 0;
+        sub.syllabus.forEach(unit => {
+            const card = document.createElement('div');
+            card.className = 'standard-unit-card';
+            let html = `<div class="unit-title">📖 ${unit.unit}</div>`;
+            unit.lessons.forEach(lesson => {
+                html += `<label class="lesson-item"><input type="checkbox" class="task" ${saved[globalIdx] ? 'checked' : ''} onchange="saveData('${sub.storageKey}', '${sub.color}')"><span>${lesson}</span></label>`;
+                globalIdx++;
+            });
+            card.innerHTML = html;
+            container.appendChild(card);
+        });
+        updateChart(sub.color);
+    }
+
+    function saveData(key, color) {
+        const checkboxes = document.querySelectorAll('.task');
+        const status = Array.from(checkboxes).map(cb => cb.checked);
+        localStorage.setItem(key, JSON.stringify(status));
+        updateChart(color);
+    }
+
+    function updateChart(color) {
+        const checkboxes = document.querySelectorAll('.task');
+        if(!checkboxes.length) return;
+        const done = Array.from(checkboxes).filter(cb => cb.checked).length;
+        const total = checkboxes.length;
+        const percent = Math.round((done / total) * 100);
+        document.getElementById('percentage').innerText = percent + "%";
+        
+        const emptyColor = getComputedStyle(document.documentElement).getPropertyValue('--chart-empty').trim();
+
+        if (currentChart) currentChart.destroy();
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        currentChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: { datasets: [{ data: [done, total - done], backgroundColor: [color, emptyColor], borderWidth: 0 }] },
+            options: { cutout: '80%', plugins: { legend: { display: false } }, animation: { duration: 800 } }
+        });
+    }
+
+    window.onload = renderHome;
+</script>
+</body>
+</html>
